@@ -30,21 +30,25 @@ Solicitante ──► MMT triagem ─┬─► Estoque MMT ───────
 
 ## Banco de dados em pasta (vários JSON pequenos)
 
-Na primeira vez, selecione uma **pasta** (recomendado: uma pasta nova e exclusiva, ex.:
-`S:\MMT\50 - MMT SISTEMAS\Banco de dados v10`). O sistema cria:
+O sistema é entregue como uma pasta: `SPARE_PARTS.html` + a pasta `dados/` ao lado. Na primeira vez,
+clique em **Selecionar Pasta do Banco** e escolha a pasta `dados` — a estrutura é criada sozinha.
+Dentro de `dados/` nada fica solto, tudo fica em subpastas:
 
 ```
-_banco.json                       identifica a pasta (versão do schema)
-_sinal.json                       "toque" a cada gravação (os outros PCs só varrem a pasta quando muda)
-config.json                       SLA, motivos, centros de custo, expediente do PCM, política de arquivo
-contador.json                     número sequencial da Req (001–999)
-materiais.json                    Master Data (autocomplete)
-usuarios/<matricula>.json         1 arquivo por usuário (senha só em hash SHA-256 com salt)
-estado/<matricula>.json           estado por usuário (ex.: chat lido até)
-requisicoes/ativas/<id>.json      1 arquivo por requisição em andamento
-arquivo/AAAA-MM/AAAA-MM-DD.json   requisições encerradas, agrupadas pelo dia em que encerraram
-chat/AAAA-MM-DD/<matricula>.json  mensagens do dia, 1 arquivo por autor
+dados/
+  sistema/       banco.json, config.json, contador.json, sinal.json, arquivamento.json
+  materiais/     materiais.json (Master Data do autocomplete)
+  usuarios/      <matricula>.json (senha só em hash SHA-256 com salt)
+  estado/        <matricula>.json (ex.: chat lido até)
+  requisicoes/   <id>.json (1 arquivo por requisição em andamento)
+  arquivo/       AAAA-MM/AAAA-MM-DD.json (encerradas, pelo dia em que encerraram)
+  chat/          AAAA-MM-DD/<matricula>.json
+  backup/        AAAA-MM-DD/ (requisições, usuários, config, materiais) — 1x por dia, pelo 1º PC que acessar
+  importacao/    cópia do JSON antigo importado
 ```
+
+**Login do administrador (fixo):** `admin` / `admin123`. Esse acesso é recriado a cada conexão, não pode
+ser apagado nem resetado. A importação do banco antigo é feita **só pelo admin**, na aba *Backup e Manutenção*.
 
 Por que assim:
 - **Cada ação grava só o arquivo da requisição afetada.** Dois setores mexendo em lotes diferentes nunca se atrapalham.
@@ -57,17 +61,12 @@ Por que assim:
 
 ## Implantação (migrando da v9.9)
 
-1. Crie a pasta nova na rede (ex.: `Banco de dados v10`).
-2. Abra `Gestao_MMT_v10.html` no Chrome/Edge → **Selecionar Pasta do Banco** → escolha a pasta nova →
-   **Importar banco antigo (.json)** e selecione o JSON da v9.9.
-   - Usuários, materiais, motivos, centros de custo, SLA, contador, requisições e chat são importados.
-   - Senhas viram hash; quem usava a senha padrão terá que criar uma senha pessoal no próximo login.
-   - Aceites 313/315 antigos (por lote) vão para os itens; o setor `REPAIR CENTER` vira `PE / REPAIR CENTER`.
-   - **O arquivo antigo não é alterado** (serve de backup/rollback).
-3. Troque **todos os PCs para a v10 de uma vez** (ex.: na troca de turno). A v9.9 grava no formato antigo e
-   não enxerga a pasta nova.
-
-Banco novo (sem importar): o administrador inicial é `admin` / `adm123`, com troca obrigatória no 1º login.
+1. Extraia o zip `SPARE_PARTS_v10.zip` na rede (ex.: `S:\MMT\50 - MMT SISTEMAS\SPARE_PARTS`).
+2. Abra `SPARE_PARTS.html` no Chrome/Edge → **Selecionar Pasta do Banco** → escolha `dados`.
+3. Entre com `admin` / `admin123` → *Backup e Manutenção* → **Importar .json antigo** e selecione o JSON da v9.9.
+   Senhas viram hash (quem usava a senha padrão cria uma senha pessoal no próximo login), aceites 313/315
+   vão para os itens, `REPAIR CENTER` vira `PE / REPAIR CENTER`. O arquivo antigo não é alterado.
+4. Troque **todos os PCs para a v10 de uma vez** (ex.: na troca de turno).
 
 ## Testes automáticos
 

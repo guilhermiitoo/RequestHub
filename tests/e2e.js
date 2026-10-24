@@ -37,7 +37,7 @@ const fsOps = {
 };
 const lerJ = p => JSON.parse(store.get(p).content);
 const arquivos = dir => fsOps.list(dir).filter(e => e.kind === 'file').map(e => dir + '/' + e.name);
-const ativas = () => arquivos('pasta/requisicoes/ativas').map(lerJ);
+const ativas = () => arquivos('pasta/requisicoes').map(lerJ);
 const reqDisco = num => ativas().find(r => r.reqNum === num);
 const itemDisco = (num, cod) => { const r = reqDisco(num); return r && r.itens.find(i => i.itemCod === cod); };
 const diaISO = t => { const d = new Date(t); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
@@ -193,19 +193,30 @@ const foto = (page, nome) => page.screenshot({ path: path.join(SHOTS, nome + '.p
     const pc1 = await novoPC(browser, 'PC1');
     let r043, r044, r045, r046;
 
-    await passo('1. Importar banco antigo (v9.9) para a pasta', async () => {
+    await passo('1. Pasta "dados" criada sozinha; admin fixo; importação só pelo admin', async () => {
         await foto(pc1, '01-login');
-        await conectar(pc1, 'Importar banco antigo');
+        ok(await pc1.locator('text=Importar banco antigo').count() === 0, 'tela de login não oferece importação');
+        await conectar(pc1);
+        const raiz = fsOps.list('pasta');
+        ok(raiz.length > 0 && raiz.every(e => e.kind === 'directory'), 'nada solto em dados/: só subpastas (' + raiz.map(e => e.name).join(', ') + ')');
+        ok(['sistema', 'materiais', 'usuarios', 'requisicoes', 'arquivo', 'chat', 'backup', 'importacao'].every(n => store.has('pasta/' + n)), 'estrutura de pastas criada');
+        await aguardar(() => store.has(`pasta/backup/${diaISO(Date.now())}/ok.json`), 'backup do dia criado no primeiro acesso');
+        await login(pc1, 'admin', 'admin123');
+        ok(!pc1.dialogos.some(d => d.tipo === 'prompt'), 'admin/admin123 entra sem pedir troca de senha');
+        await tela(pc1, 'BACKUP');
+        await pc1.click('button:has-text("Importar .json antigo")');
         await pc1.waitForSelector('#tpv-modal-header:has-text("Importação concluída")');
         await foto(pc1, '02-importacao');
         await pc1.click('.tpv-modal-btn-close');
-        ok(store.has('pasta/_banco.json'), '_banco.json criado');
+        ok(arquivos('pasta/importacao').length === 1, 'cópia do JSON importado em dados/importacao/');
+        ok(store.has('pasta/sistema/banco.json'), 'sistema/banco.json criado');
+        ok(fsOps.list('pasta').every(e => e.kind === 'directory'), 'continua sem nada solto após importar');
         const pe = lerJ('pasta/usuarios/1001.json');
         ok(pe.setor === 'PE / REPAIR CENTER', 'setor REPAIR CENTER virou "PE / REPAIR CENTER"');
         ok(pe.senhaHash && !('senha' in pe), 'senha gravada só como hash (sem texto puro)');
         ok(lerJ('pasta/usuarios/4001.json').trocarSenha === true, 'quem usava a senha padrão terá que trocar');
-        ok(lerJ('pasta/config.json').slaRules.MMT_COLETA === 30, 'config.json com SLA de coleta padrão');
-        ok(lerJ('pasta/contador.json').valor === 42, 'contador de Req preservado (42)');
+        ok(lerJ('pasta/sistema/config.json').slaRules.MMT_COLETA === 30, 'config.json com SLA de coleta padrão');
+        ok(lerJ('pasta/sistema/contador.json').valor === 42, 'contador de Req preservado (42)');
         const at = ativas();
         ok(at.length === 1 && at[0].reqNum === '042', 'só a requisição em andamento ficou em ativas/');
         ok(at[0].id === '2610-1234-2' && at[0].itens[0].idItem === '2610-1234-2', 'ID repetido do formato antigo foi renomeado');
@@ -217,11 +228,9 @@ const foto = (page, nome) => page.screenshot({ path: path.join(SHOTS, nome + '.p
         ok(store.get('legado/banco_antigo.json').content === LEGADO_TXT, 'arquivo antigo NÃO foi alterado');
     });
 
-    await passo('2. Admin: troca obrigatória de senha + SLA e expediente do PCM', async () => {
-        pc1.prompts.push('Admin@2026');
-        await login(pc1, 'admin', 'adm123');
+    await passo('2. Admin fixo continua admin123 após importar + SLA e expediente do PCM', async () => {
         const adm = lerJ('pasta/usuarios/admin.json');
-        ok(adm.trocarSenha === false, 'admin trocou a senha padrão no 1º login');
+        ok(adm.trocarSenha === false && adm.fixo === true, 'admin do arquivo antigo ignorado: admin fixo mantido');
         await tela(pc1, 'ADMIN_USERS');
         await pc1.fill('#pcm-inicio', '00:00');
         await pc1.fill('#pcm-fim', '23:59');
@@ -229,8 +238,8 @@ const foto = (page, nome) => page.screenshot({ path: path.join(SHOTS, nome + '.p
         await pc1.check('#pcm-domingo');
         await pc1.fill('#sla-coleta', '25');
         await pc1.click('#btn-save-sla');
-        await aguardar(() => lerJ('pasta/config.json').pcmHorario.fim === '23:59', 'config.json atualizado');
-        ok(lerJ('pasta/config.json').slaRules.MMT_COLETA === 25, 'SLA de coleta do MMT gravado');
+        await aguardar(() => lerJ('pasta/sistema/config.json').pcmHorario.fim === '23:59', 'config.json atualizado');
+        ok(lerJ('pasta/sistema/config.json').slaRules.MMT_COLETA === 25, 'SLA de coleta do MMT gravado');
         await foto(pc1, '03-admin');
         await logout(pc1);
     });
@@ -263,7 +272,10 @@ const foto = (page, nome) => page.screenshot({ path: path.join(SHOTS, nome + '.p
 
     const pc2 = await novoPC(browser, 'PC2');
     await passo('5. MMT (outro PC) faz a triagem: estoque MMT / WH / PCM + desfazer', async () => {
+        const okAntes = store.get(`pasta/backup/${diaISO(Date.now())}/ok.json`).content;
         await conectar(pc2);
+        await esperar(1500);
+        ok(store.get(`pasta/backup/${diaISO(Date.now())}/ok.json`).content === okAntes, 'segundo PC não refaz o backup do dia');
         await login(pc2, '2001', 'mmt1234');
         await tela(pc2, 'MMT');
         await abrirReq(pc2, '043');
@@ -342,14 +354,14 @@ const foto = (page, nome) => page.screenshot({ path: path.join(SHOTS, nome + '.p
     });
 
     await passo('9. Arquivamento: encerrada vai para o arquivo do dia (verificar-depois-apagar)', async () => {
-        const p = 'pasta/requisicoes/ativas/' + reqDisco('043').id + '.json';
+        const p = 'pasta/requisicoes/' + reqDisco('043').id + '.json';
         const r = lerJ(p);
         const recuar = v => iso(new Date(v).getTime() - 2 * D);
         r.itens.forEach(i => Object.keys(i.timestamps).forEach(k => { i.timestamps[k] = recuar(i.timestamps[k]); }));
         fsOps.write(p, JSON.stringify(r));
-        fsOps.write('pasta/_sinal.json', JSON.stringify({ ts: Date.now(), sessao: 'teste' })); // como o app faz após gravar
+        fsOps.write('pasta/sistema/sinal.json', JSON.stringify({ ts: Date.now(), sessao: 'teste' })); // como o app faz após gravar
         await logout(pc1);
-        await login(pc1, 'admin', 'Admin@2026');
+        await login(pc1, 'admin', 'admin123');
         await tela(pc1, 'BACKUP');
         await foto(pc1, '10-backup');
         await sync(pc1);
@@ -421,10 +433,10 @@ const foto = (page, nome) => page.screenshot({ path: path.join(SHOTS, nome + '.p
     });
 
     await passo('11. Bypass: PCM fora do expediente → WH separa com nota obrigatória → PCM dá ciente', async () => {
-        const cfg = lerJ('pasta/config.json');
+        const cfg = lerJ('pasta/sistema/config.json');
         cfg.pcmHorario = { inicio: '03:00', fim: '03:01', sabado: false, domingo: false };
         if (new Date().getHours() === 3 && new Date().getMinutes() === 0) cfg.pcmHorario = { inicio: '05:00', fim: '05:01', sabado: false, domingo: false };
-        fsOps.write('pasta/config.json', JSON.stringify(cfg));
+        fsOps.write('pasta/sistema/config.json', JSON.stringify(cfg));
         await abrirReq(pc2, r044.reqNum);
         ok(await botaoItem(pc2, r044.reqNum, '004.101', 'Enviar PCM').count() === 0, 'fora do expediente não há "Enviar PCM"');
         await botaoItem(pc2, r044.reqNum, '004.101', 'Solicitar WH').click();
@@ -444,9 +456,9 @@ const foto = (page, nome) => page.screenshot({ path: path.join(SHOTS, nome + '.p
     });
 
     await passo('12. Conflito: o mesmo item alterado em 2 PCs ao mesmo tempo', async () => {
-        const cfg = lerJ('pasta/config.json');
+        const cfg = lerJ('pasta/sistema/config.json');
         cfg.pcmHorario = { inicio: '00:00', fim: '23:59', sabado: true, domingo: true };
-        fsOps.write('pasta/config.json', JSON.stringify(cfg));
+        fsOps.write('pasta/sistema/config.json', JSON.stringify(cfg));
         r046 = await criarRA(pc1, [{ cod: '004.100', qty: 1, pos: 'U5' }], { op: 'OP946' });
         const pc5 = await novoPC(browser, 'PC5');
         await conectar(pc5); await login(pc5, '2001', 'mmt1234'); await tela(pc5, 'MMT');
