@@ -60,6 +60,6 @@
         async requestPermission() { return 'granted'; }
     }
 
-    window.showDirectoryPicker = async () => new FakeDirHandle('pasta', 'Banco de dados v10');
+    window.showDirectoryPicker = async () => new FakeDirHandle('raiz', 'SPARE_PARTS');
     window.showOpenFilePicker = async () => [new FakeFileHandle('legado/banco_antigo.json', 'banco_antigo.json')];
 })();

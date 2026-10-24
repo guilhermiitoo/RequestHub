@@ -31,7 +31,7 @@ Solicitante ──► MMT triagem ─┬─► Estoque MMT ───────
 ## Banco de dados em pasta (vários JSON pequenos)
 
 O sistema é entregue como uma pasta: `SPARE_PARTS.html` + a pasta `dados/` ao lado. Na primeira vez,
-clique em **Selecionar Pasta do Banco** e escolha a pasta `dados` — a estrutura é criada sozinha.
+clique em **Selecionar Pasta do Sistema** e escolha a pasta onde está o `SPARE_PARTS.html` — o sistema usa (e cria) a pasta `dados` dentro dela.
 Dentro de `dados/` nada fica solto, tudo fica em subpastas:
 
 ```
@@ -62,7 +62,7 @@ Por que assim:
 ## Implantação (migrando da v9.9)
 
 1. Extraia o zip `SPARE_PARTS_v10.zip` na rede (ex.: `S:\MMT\50 - MMT SISTEMAS\SPARE_PARTS`).
-2. Abra `SPARE_PARTS.html` no Chrome/Edge → **Selecionar Pasta do Banco** → escolha `dados`.
+2. Abra `SPARE_PARTS.html` no Chrome/Edge → **Selecionar Pasta do Sistema** → escolha a pasta do sistema (onde está o HTML).
 3. Entre com `admin` / `admin123` → *Backup e Manutenção* → **Importar .json antigo** e selecione o JSON da v9.9.
    Senhas viram hash (quem usava a senha padrão cria uma senha pessoal no próximo login), aceites 313/315
    vão para os itens, `REPAIR CENTER` vira `PE / REPAIR CENTER`. O arquivo antigo não é alterado.

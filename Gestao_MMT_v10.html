@@ -125,20 +125,20 @@
                 <div class="mb-4 text-left w-full">
                     <label class="block text-[10px] font-bold text-gray-500 mb-1 uppercase tracking-wider">Pasta do Banco de Dados na Rede</label>
                     <div class="flex items-center border border-gray-300 rounded overflow-hidden shadow-sm">
-                        <input type="text" id="db-path-input" readonly value="Pasta dados (ao lado do arquivo SPARE_PARTS.html)" class="w-full px-2 py-1.5 text-xs text-gray-600 bg-gray-100 outline-none font-mono">
+                        <input type="text" id="db-path-input" readonly value="Pasta onde está o arquivo SPARE_PARTS.html" class="w-full px-2 py-1.5 text-xs text-gray-600 bg-gray-100 outline-none font-mono">
                         <button type="button" onclick="window.copyDbPath()" id="btn-copy-path" class="bg-gray-200 hover:bg-gray-300 px-3 py-1.5 transition-colors border-l border-gray-300 text-gray-600" title="Copiar Caminho">
                             <i data-lucide="copy" class="w-4 h-4"></i>
                         </button>
                     </div>
-                    <p class="text-[9px] text-gray-400 mt-1">Clique em "Selecionar Pasta do Banco" e escolha a pasta <b>dados</b> que fica junto do arquivo do sistema. Na primeira vez a estrutura é criada sozinha.</p>
+                    <p class="text-[9px] text-gray-400 mt-1">Clique em "Selecionar Pasta do Sistema" e escolha a pasta onde está o arquivo <b>SPARE_PARTS.html</b>. O sistema usa a pasta <b>dados</b> dentro dela (e cria tudo sozinho na primeira vez).</p>
                 </div>
 
                 <button type="button" id="btn-reconectar-db" onclick="window.reconectarBanco()" style="display:none" class="cursor-pointer w-full items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-2 px-4 rounded transition-colors shadow mb-2">
-                    <i data-lucide="zap" class="w-4 h-4"></i> Reconectar Pasta (última usada)
+                    <i data-lucide="zap" class="w-4 h-4"></i> Reconectar Pasta do Sistema (última usada)
                 </button>
 
                 <button type="button" id="btn-selecionar-pasta" onclick="window.loadDatabase()" class="cursor-pointer inline-flex items-center gap-2 bg-sidebar hover:bg-sidebarHover text-white text-xs font-bold py-2 px-4 rounded transition-colors shadow">
-                    <i data-lucide="folder-search" class="w-4 h-4"></i> Selecionar Pasta do Banco
+                    <i data-lucide="folder-search" class="w-4 h-4"></i> Selecionar Pasta do Sistema
                 </button>
             </div>
 
@@ -2107,8 +2107,6 @@
 
         // Pasta "dados" sem banco: cria a estrutura automaticamente (importação do antigo só pelo admin, na aba Backup)
         window._prepararPastaNova = async function() {
-            const conteudo = (await window.TPVStore.conteudoRaiz()).filter(n => !['sistema','materiais','usuarios','estado','requisicoes','arquivo','chat','backup','importacao'].includes(n));
-            if (conteudo.length && !confirm(`A pasta selecionada tem outros arquivos (${conteudo.slice(0, 3).join(', ')}...).\nO correto é selecionar a pasta "dados" do sistema.\n\nCriar a estrutura do banco mesmo assim?`)) return false;
             await window.TPVStore.criarPastas();
             await window.TPVStore.marcarBanco();
             await window.garantirAdminFixo();
@@ -2145,7 +2143,17 @@
                     throw new Error('Permissão de gravação negada. O sistema não pode funcionar sem gravar na pasta da rede.');
                 }
             }
-            const marca = await window.TPVStore.conectar(dirHandle);
+            // Seleciona-se a pasta do SISTEMA (onde está o HTML); o banco fica sempre em <pasta>/dados.
+            // (Se a própria pasta "dados" for escolhida por engano, ela é usada diretamente.)
+            let dados;
+            if (String(dirHandle.name).toLowerCase() === 'dados') {
+                let ehDados = false;
+                try { await dirHandle.getDirectoryHandle('sistema'); ehDados = true; } catch (e) {}
+                dados = ehDados ? dirHandle : await dirHandle.getDirectoryHandle('dados', { create: true });
+            } else {
+                dados = await dirHandle.getDirectoryHandle('dados', { create: true });
+            }
+            const marca = await window.TPVStore.conectar(dados);
             if (!marca) {
                 const ok = await window._prepararPastaNova();
                 if (!ok) { window.TPVStore.dir = null; return; }
